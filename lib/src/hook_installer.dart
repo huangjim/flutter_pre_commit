@@ -85,52 +85,6 @@ class HookInstaller {
     return path.join(packageRoot, relativePath);
   }
 
-  // 获取模板文件的绝对路径（修复版）
-  // static String _getTemplatePath(String templateName) {
-  //   // 获取当前脚本的绝对路径
-  //   final scriptPath = Platform.script.toFilePath();
-  //
-  //   // 在开发模式下，脚本路径类似：/path/to/package/bin/flutter_pre_commit.dart
-  //   // 在安装模式下，脚本路径类似：/path/to/example/.dart_tool/pub/bin/flutter_pre_commit/<version>/bin/flutter_pre_commit.dart
-  //
-  //
-  //
-  //   String packageRoot;
-  //
-  //   if (scriptPath.contains('bin/flutter_pre_commit.dart')) {
-  //     // 开发模式：包根目录是 bin 目录的上级
-  //     packageRoot = path.dirname(path.dirname(scriptPath));
-  //   } else if (scriptPath.contains('.dart_tool/pub/bin/flutter_pre_commit/')) {
-  //     // 安装模式：包根目录是 flutter_pre_commit 包目录
-  //     final parts = scriptPath.split(path.separator);
-  //     final packageIndex = parts.indexWhere((part) => part == 'flutter_pre_commit');
-  //     if (packageIndex != -1 && packageIndex + 1 < parts.length) {
-  //       packageRoot = path.joinAll(parts.sublist(0, packageIndex + 1));
-  //     } else {
-  //       // 回退方案
-  //       packageRoot = path.dirname(scriptPath);
-  //     }
-  //   } else {
-  //     // 默认回退：使用包根目录
-  //     packageRoot = path.dirname(path.dirname(scriptPath));
-  //   }
-  //
-  //   // 确保路径以斜杠开头
-  //   if (!packageRoot.startsWith('/')) {
-  //     packageRoot = '/$packageRoot';
-  //   }
-  //
-  //   // 构建完整路径
-  //   final fullPath = path.join(packageRoot, 'templates', templateName);
-  //
-  //   // 验证路径是否存在
-  //   if (!File(fullPath).existsSync()) {
-  //     throw Exception('Template file not found at: $fullPath');
-  //   }
-  //
-  //   return fullPath;
-  // }
-
   static void _installToGitHooks(Directory sourceDir, bool force) {
     final gitHooksDir = Directory('.git/hooks');
 
