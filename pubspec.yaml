@@ -1,7 +1,7 @@
 name: flutter_pre_commit
 description: "Unified pre-commit hook for Flutter projects"
 version: 0.1.0  # 遵循语义化版本规范
-homepage:
+homepage: https://github.com/huangjim/flutter_pre_commit
 
 environment:
   sdk: ^3.6.0
