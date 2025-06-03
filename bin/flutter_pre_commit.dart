@@ -2,7 +2,6 @@
 
 import 'dart:io';
 import 'package:args/args.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_pre_commit/flutter_pre_commit.dart';
 
 void main(List<String> args) async {
@@ -47,26 +46,26 @@ void main(List<String> args) async {
 
     // 环境预检
     if (!(results['skip-checks'] as bool)) {
-      debugPrint('⚙️ Performing pre-install checks...');
+      print('⚙️ Performing pre-install checks...');
       await preInstallCheck();
-      debugPrint('✓ Environment checks passed');
+      print('✓ Environment checks passed');
     }
 
     // 执行安装
-    debugPrint('🔄 Installing pre-commit hook...');
+    print('🔄 Installing pre-commit hook...');
     await HookInstaller.install(force: results['force'] as bool);
 
-    debugPrint('\n✅ Installation completed successfully!');
-    debugPrint('   Pre-commit hook will now validate your Dart code');
+    print('\n✅ Installation completed successfully!');
+    print('   Pre-commit hook will now validate your Dart code');
   } catch (e) {
-    debugPrint('\n❌ Installation failed: ${e.toString()}');
-    debugPrint('   Use --skip-checks to bypass validation (not recommended)');
+    print('\n❌ Installation failed: ${e.toString()}');
+    print('   Use --skip-checks to bypass validation (not recommended)');
     exit(1);
   }
 }
 
 void _printHelp(ArgParser parser) {
-  debugPrint('''
+  print('''
 Flutter Pre-Commit Hook Installer v$packageVersion
 
 Usage:

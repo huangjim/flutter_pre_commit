@@ -1,12 +1,10 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
-import 'package:yaml/yaml.dart';
 
 import './hook_installer.dart' as hook_installer;
 
 class ConfigManager {
-
   static String _mergeAnalysisOptions(String current, String defaults) {
     // 检查是否已包含 flutter_pre_commit
     if (current.contains('include: package:flutter_pre_commit/analysis_options.yaml')) {
@@ -22,9 +20,7 @@ class ConfigManager {
       // 创建flutter_pre_commit的分析配置文件，让它包含原来的配置
       // 然后在项目中只包含flutter_pre_commit
       return current.replaceFirst(
-          'include: $existingInclude',
-          'include: package:flutter_pre_commit/analysis_options.yaml'
-      );
+          'include: $existingInclude', 'include: package:flutter_pre_commit/analysis_options.yaml');
     }
 
     // 没有任何 include，添加 flutter_pre_commit
@@ -39,9 +35,8 @@ $current
 
   static Future<void> ensureAnalysisOptions(Directory projectDir) async {
     // 获取模板文件的正确路径
-    final templatePath = hook_installer.HookInstaller.resolvePackagePath(
-        'templates/analysis_options.yaml'
-    );
+    final templatePath =
+        hook_installer.HookInstaller.resolvePackagePath('templates/analysis_options.yaml');
 
     // 读取模板内容
     final defaultOptions = File(templatePath).readAsStringSync();
