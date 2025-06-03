@@ -8,7 +8,7 @@ export 'src/config_manager.dart' show ConfigManager;
 // export 'src/hook_updater.dart' show HookUpdater;
 
 // 版本信息
-const String packageVersion = '0.2.1';
+const String packageVersion = '0.2.2';
 const String minFlutterVersion = '3.7.0';
 
 /// 预检查：验证当前环境是否满足要求

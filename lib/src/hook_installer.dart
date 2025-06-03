@@ -32,142 +32,141 @@ class HookInstaller {
   }
 
   static Future<void> _copyHookScript(Directory targetDir) async {
-// 获取模板文件路径
-    final templatePath = _getTemplatePath('pre-commit');
+    try {
+      // 获取模板文件路径并复制pre-commit文件
+      final templatePath = findTemplateFile('pre-commit');
+      final targetFile = File(path.join(targetDir.path, 'pre-commit'));
+      
+      print('找到模板文件路径: $templatePath');
+      final templateContent = File(templatePath).readAsStringSync();
+      targetFile.writeAsStringSync(templateContent);
+      
+      // 设置权限（Unix系统）
+      if (Platform.isLinux || Platform.isMacOS) {
+        Process.runSync('chmod', ['+x', targetFile.path]);
+      }
+      
+      // 复制analysis_options.yaml
+      try {
+        final analysisTemplatePath = findTemplateFile('analysis_options.yaml');
+        final analysisTargetFile = File(path.join(targetDir.path, 'analysis_options.yaml'));
+        
+        print('找到分析配置模板文件路径: $analysisTemplatePath');
+        final analysisContent = File(analysisTemplatePath).readAsStringSync();
+        analysisTargetFile.writeAsStringSync(analysisContent);
+      } catch (e) {
+        print('复制analysis_options.yaml失败，但这不是关键错误: $e');
+      }
+    } catch (e) {
+      print('复制钩子脚本失败: $e');
+      // 尝试使用内置模板作为备用
+      _useEmbeddedTemplate(targetDir);
+    }
+  }
 
-    // 创建目标文件
+  // 内置模板内容作为备用
+  static void _useEmbeddedTemplate(Directory targetDir) {
+    print('使用内置模板作为备用');
+    final preCommitContent = '''#!/bin/sh
+# Flutter pre-commit hook
+
+DART_TOOL_FOLDER=\"\$(dirname \"\$0\")/../../\"\n
+cd \"\\\$DART_TOOL_FOLDER\" || exit 1
+
+exec dart analyze
+''';
+    
     final targetFile = File(path.join(targetDir.path, 'pre-commit'));
-
-    // 读取模板内容
-    final templateContent = File(templatePath).readAsStringSync();
-
-    // 写入目标位置
-    targetFile.writeAsStringSync(templateContent);
-
-    // 设置权限（Unix系统）
+    targetFile.writeAsStringSync(preCommitContent);
+    
     if (Platform.isLinux || Platform.isMacOS) {
       Process.runSync('chmod', ['+x', targetFile.path]);
     }
-  }
-
-  static String _getTemplatePath(String templateName) {
-    final fullPath = resolvePackagePath(path.join('templates', templateName));
-
-    if (!File(fullPath).existsSync()) {
-      throw Exception('Template file not found at: $fullPath');
-    }
-
-    return fullPath;
-  }
-
-  // 提取包根目录路径// 添加在类外部或类内部静态方法
-  static String resolvePackagePath(String relativePath) {
-    final scriptPath = Platform.script.toFilePath();
-    final fileName = path.basename(relativePath);
-    String packageRoot;
     
-    // 尝试多个可能的位置
+    // 内置analysis_options.yaml内容
+    final analysisContent = '''include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    - prefer_single_quotes
+    - sort_child_properties_last
+    - avoid_print
+''';
+    
+    final analysisTargetFile = File(path.join(targetDir.path, 'analysis_options.yaml'));
+    analysisTargetFile.writeAsStringSync(analysisContent);
+  }
+
+  // 尝试多种策略查找模板文件
+  static String findTemplateFile(String filename) {
+    print('查找模板文件: $filename');
     final possiblePaths = <String>[];
     
-    // 1. 首先尝试从当前脚本路径推断
-    if (scriptPath.contains('bin/flutter_pre_commit.dart')) {
-      // 开发模式：包根目录是 bin 目录的上级
-      packageRoot = path.dirname(path.dirname(scriptPath));
-      possiblePaths.add(path.join(packageRoot, relativePath));
-    } else if (scriptPath.contains('.dart_tool/pub/bin/flutter_pre_commit')) {
-      // 安装模式：需要找到包的实际位置
-      final parts = scriptPath.split(path.separator);
-      final packageIndex = parts.indexWhere((part) => part == 'flutter_pre_commit');
-      if (packageIndex != -1) {
-        packageRoot = path.joinAll(parts.sublist(0, packageIndex + 1));
-        possiblePaths.add(path.join(packageRoot, relativePath));
-      }
-    }
+    // 1. 当前项目根目录下的lib/templates
+    possiblePaths.add(path.join(Directory.current.path, 'lib', 'templates', filename));
     
-    // 2. 尝试在当前项目目录下查找
-    possiblePaths.add(path.join(Directory.current.path, relativePath));
+    // 2. 当前项目根目录下的templates
+    possiblePaths.add(path.join(Directory.current.path, 'templates', filename));
     
-    // 3. 尝试在 lib/templates 目录下查找（作为包资源）
-    if (relativePath.startsWith('templates/')) {
-      possiblePaths.add(path.join(Directory.current.path, 'lib', relativePath));
-    }
-    
-    // 4. 尝试在包的资源目录中查找
+    // 3. 包所在目录下的lib/templates
     try {
-      // 获取当前工作目录
-      final currentDir = Directory.current.path;
+      final scriptPath = Platform.script.toFilePath();
+      print('当前脚本路径: $scriptPath');
       
-      // 尝试在当前项目的 .dart_tool/package/flutter_pre_commit 目录下查找
-      final packageDir = path.join(currentDir, '.dart_tool', 'package', 'flutter_pre_commit');
-      if (File(packageDir).existsSync()) {
-        // 读取包目录链接文件
-        final packageLink = File(packageDir).readAsStringSync().trim();
-        possiblePaths.add(path.join(packageLink, relativePath));
+      // 向上查找包根目录
+      String? packageDir;
+      
+      // 3.1 如果是在.dart_tool/pub/bin中运行
+      if (scriptPath.contains('.dart_tool/pub/bin/flutter_pre_commit')) {
+        // 从脚本路径向上找，看看是否能找到package
+        var dir = path.dirname(scriptPath);
+        // 向上最多查找10层目录
+        for (var i = 0; i < 10; i++) {
+          final libTemplatesDir = path.join(dir, 'lib', 'templates');
+          final templatesDir = path.join(dir, 'templates');
+          
+          if (Directory(libTemplatesDir).existsSync()) {
+            packageDir = dir;
+            break;
+          }
+          if (Directory(templatesDir).existsSync()) {
+            packageDir = dir;
+            break;
+          }
+          dir = path.dirname(dir);
+        }
+      } 
+      // 3.2 如果是在开发模式下运行
+      else if (scriptPath.contains('bin/flutter_pre_commit.dart')) {
+        packageDir = path.dirname(path.dirname(scriptPath));
+      }
+      
+      if (packageDir != null) {
+        possiblePaths.add(path.join(packageDir, 'lib', 'templates', filename));
+        possiblePaths.add(path.join(packageDir, 'templates', filename));
       }
     } catch (e) {
-      // 忽略错误，继续尝试其他方法
+      print('查找包路径时出错: $e');
     }
     
-    // 检查所有可能的路径
-    for (final pathToCheck in possiblePaths) {
-      if (File(pathToCheck).existsSync()) {
-        return pathToCheck;
-      }
-    }
-    
-    // 如果上述方法都失败，尝试一个最后的方法：查找包含在 lib/templates 中的资源
-    final packageName = 'flutter_pre_commit';
-    final packagePath = _findPackagePath(packageName);
-    if (packagePath != null) {
-      final resourcePath = path.join(packagePath, 'lib', 'templates', fileName);
-      if (File(resourcePath).existsSync()) {
-        return resourcePath;
-      }
-    }
-    
-    // 5. 直接尝试使用当前目录下的模板文件
-    final directPath = path.join(Directory.current.path, 'templates', fileName);
-    if (File(directPath).existsSync()) {
-      return directPath;
-    }
-    
-    // 确保路径有前导斜杠
-    var resultPath = possiblePaths.isNotEmpty ? possiblePaths.first : path.join('templates', fileName);
-    if (!resultPath.startsWith('/')) {
-      resultPath = '/$resultPath';
-    }
-    
-    return resultPath;
-  }
-  
-  // 查找包的路径
-  static String? _findPackagePath(String packageName) {
+    // 4. 对于本地路径引用，尝试查找相对路径
     try {
-      // 尝试在 .packages 文件中查找包路径
-      final packagesFile = File('.packages');
-      if (packagesFile.existsSync()) {
-        final content = packagesFile.readAsStringSync();
-        final lines = content.split('\n');
-        for (final line in lines) {
-          if (line.startsWith('$packageName:')) {
-            final parts = line.split(':');
-            if (parts.length > 1) {
-              var packageUri = parts[1];
-              // 移除 file:// 前缀
-              if (packageUri.startsWith('file://')) {
-                packageUri = packageUri.substring(7);
-              }
-              return packageUri;
-            }
-          }
-        }
+      final currentDir = Directory.current.path;
+      final localPackagePath = path.join(currentDir, '..', 'flutter_pre_commit');
+      if (Directory(localPackagePath).existsSync()) {
+        possiblePaths.add(path.join(localPackagePath, 'lib', 'templates', filename));
+        possiblePaths.add(path.join(localPackagePath, 'templates', filename));
       }
-      
-      // 尝试在 .dart_tool/package_config.json 中查找
-      final packageConfigFile = File('.dart_tool/package_config.json');
+    } catch (e) {
+      print('查找本地包路径时出错: $e');
+    }
+    
+    // 5. 尝试在.dart_tool/package_config.json中查找包路径
+    try {
+      final packageConfigFile = File(path.join(Directory.current.path, '.dart_tool', 'package_config.json'));
       if (packageConfigFile.existsSync()) {
         final content = packageConfigFile.readAsStringSync();
-        final packageIndex = content.indexOf('"name":"$packageName"');
+        final packageIndex = content.indexOf('"name":"flutter_pre_commit"');
         if (packageIndex != -1) {
           final rootUriIndex = content.indexOf('"rootUri":', packageIndex);
           if (rootUriIndex != -1) {
@@ -175,19 +174,31 @@ class HookInstaller {
             final endQuote = content.indexOf('"', startQuote + 1);
             if (startQuote != -1 && endQuote != -1) {
               var packageUri = content.substring(startQuote + 1, endQuote);
-              // 移除 file:// 前缀
+              // 移除file://前缀
               if (packageUri.startsWith('file://')) {
                 packageUri = packageUri.substring(7);
               }
-              return packageUri;
+              possiblePaths.add(path.join(packageUri, 'lib', 'templates', filename));
+              possiblePaths.add(path.join(packageUri, 'templates', filename));
             }
           }
         }
       }
     } catch (e) {
-      // 忽略错误
+      print('读取package_config.json时出错: $e');
     }
-    return null;
+    
+    // 尝试所有可能的路径
+    for (final pathToCheck in possiblePaths) {
+      print('检查路径: $pathToCheck');
+      if (File(pathToCheck).existsSync()) {
+        print('找到模板文件: $pathToCheck');
+        return pathToCheck;
+      }
+    }
+    
+    // 如果以上方法都失败，抛出异常
+    throw Exception('找不到模板文件 $filename，尝试了以下路径: \n${possiblePaths.join('\n')}');
   }
 
   static void _installToGitHooks(Directory sourceDir, bool force) {
