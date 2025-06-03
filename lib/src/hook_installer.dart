@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_pre_commit/src/config_manager.dart';
 import 'package:path/path.dart' as path;
@@ -12,89 +13,80 @@ class HookInstaller {
       throw Exception('Not a Dart/Flutter project: pubspec.yaml not found');
     }
 
-    // 创建目标目录
-    final targetDir = Directory(path.join(projectDir.path, '.dart_tool', 'flutter_pre_commit'));
-    if (!targetDir.existsSync()) {
-      targetDir.createSync(recursive: true);
-    }
+    print('\u2699\ufe0f Performing pre-install checks...');
+    print('\u2713 Environment checks passed');
+    print('\ud83d\udd04 Installing pre-commit hook...');
 
-    // 复制钩子脚本
-    await _copyHookScript(targetDir);
+    // 直接从模板文件复制并安装到 .git/hooks
+    await _installHookScript(force);
 
     // 创建/更新分析配置
     await ConfigManager.ensureAnalysisOptions(projectDir);
 
-    // 安装到 .git/hooks
-    _installToGitHooks(targetDir, force);
-
-    print('✅ Flutter pre-commit hook installed successfully!');
+    print('\u2705 Flutter pre-commit hook installed successfully!');
     print('   All Dart files will be checked before commit.');
+    
+    print('\n\u2705 Installation completed successfully!');
+    print('   Pre-commit hook will now validate your Dart code');
   }
 
-  static Future<void> _copyHookScript(Directory targetDir) async {
-    try {
-      // 获取模板文件路径并复制pre-commit文件
-      final templatePath = findTemplateFile('pre-commit');
-      final targetFile = File(path.join(targetDir.path, 'pre-commit'));
-      
-      print('找到模板文件路径: $templatePath');
-      final templateContent = File(templatePath).readAsStringSync();
-      targetFile.writeAsStringSync(templateContent);
-      
-      // 设置权限（Unix系统）
-      if (Platform.isLinux || Platform.isMacOS) {
-        Process.runSync('chmod', ['+x', targetFile.path]);
-      }
-      
-      // 复制analysis_options.yaml
-      try {
-        final analysisTemplatePath = findTemplateFile('analysis_options.yaml');
-        final analysisTargetFile = File(path.join(targetDir.path, 'analysis_options.yaml'));
-        
-        print('找到分析配置模板文件路径: $analysisTemplatePath');
-        final analysisContent = File(analysisTemplatePath).readAsStringSync();
-        analysisTargetFile.writeAsStringSync(analysisContent);
-      } catch (e) {
-        print('复制analysis_options.yaml失败，但这不是关键错误: $e');
-      }
-    } catch (e) {
-      print('复制钩子脚本失败: $e');
-      // 尝试使用内置模板作为备用
-      _useEmbeddedTemplate(targetDir);
+  static Future<void> _installHookScript(bool force) async {
+    final gitDirPath = path.join(Directory.current.path, '.git');
+    final hooksDir = path.join(gitDirPath, 'hooks');
+    
+    // 确保 hooks 目录存在
+    final hooksDirectory = Directory(hooksDir);
+    if (!hooksDirectory.existsSync()) {
+      hooksDirectory.createSync(recursive: true);
     }
+    
+    final hookFilePath = path.join(hooksDir, 'pre-commit');
+    final preCommitFile = File(hookFilePath);
+    
+    // 检查是否已存在钩子
+    if (preCommitFile.existsSync() && !force) {
+      final content = preCommitFile.readAsStringSync();
+      
+      // 如果不是我们的钩子，且未强制覆盖，则报错
+      if (!content.contains('flutter_pre_commit')) {
+        throw Exception('Pre-commit hook already exists. Use --force to overwrite');
+      }
+    }
+    
+    String preCommitContent;
+    
+    try {
+      // 尝试从模板文件复制
+      final templatePath = findTemplateFile('pre-commit');
+      preCommitContent = File(templatePath).readAsStringSync();
+      print('从模板文件复制钩子脚本: $templatePath');
+    } catch (e) {
+      // 使用默认内置模板
+      print('复制钩子脚本失败: $e');
+      print('使用内置模板作为备用');
+      preCommitContent = _getDefaultPreCommitTemplate();
+    }
+    
+    // 写入 pre-commit 钩子文件
+    preCommitFile.writeAsStringSync(preCommitContent);
+    
+    // 设置可执行权限
+    if (!Platform.isWindows) {
+      Process.runSync('chmod', ['+x', hookFilePath]);
+    }
+    
+    print('Git 钩子安装完成: $hookFilePath');
   }
 
-  // 内置模板内容作为备用
-  static void _useEmbeddedTemplate(Directory targetDir) {
-    print('使用内置模板作为备用');
-    final preCommitContent = '''#!/bin/sh
+  static String _getDefaultPreCommitTemplate() {
+    return '''#!/bin/sh
 # Flutter pre-commit hook
 
-DART_TOOL_FOLDER=\"\$(dirname \"\$0\")/../../\"\n
-cd \"\\\$DART_TOOL_FOLDER\" || exit 1
+DART_TOOL_FOLDER="\$(dirname "\$0")/../../"\n
+cd "\$DART_TOOL_FOLDER" || exit 1
 
 exec dart analyze
 ''';
-    
-    final targetFile = File(path.join(targetDir.path, 'pre-commit'));
-    targetFile.writeAsStringSync(preCommitContent);
-    
-    if (Platform.isLinux || Platform.isMacOS) {
-      Process.runSync('chmod', ['+x', targetFile.path]);
-    }
-    
-    // 内置analysis_options.yaml内容
-    final analysisContent = '''include: package:flutter_lints/flutter.yaml
-
-linter:
-  rules:
-    - prefer_single_quotes
-    - sort_child_properties_last
-    - avoid_print
-''';
-    
-    final analysisTargetFile = File(path.join(targetDir.path, 'analysis_options.yaml'));
-    analysisTargetFile.writeAsStringSync(analysisContent);
   }
 
   // 尝试多种策略查找模板文件
@@ -199,42 +191,5 @@ linter:
     
     // 如果以上方法都失败，抛出异常
     throw Exception('找不到模板文件 $filename，尝试了以下路径: \n${possiblePaths.join('\n')}');
-  }
-
-  static void _installToGitHooks(Directory sourceDir, bool force) {
-    final gitHooksDir = Directory('.git/hooks');
-
-    // 验证 .git/hooks 存在
-    if (!gitHooksDir.existsSync()) {
-      throw Exception('.git/hooks directory not found');
-    }
-
-    final targetFile = File(path.join(gitHooksDir.path, 'pre-commit'));
-    final sourceFile = File(path.join(sourceDir.path, 'pre-commit'));
-
-    // 检查是否已存在钩子
-    if (targetFile.existsSync()) {
-      final content = targetFile.readAsStringSync();
-
-      // 如果是我们的钩子，直接覆盖
-      if (content.contains('flutter_pre_commit')) {
-        targetFile.writeAsStringSync(sourceFile.readAsStringSync());
-      }
-      // 如果是其他钩子，根据 force 参数处理
-      else if (force) {
-        targetFile.writeAsStringSync(sourceFile.readAsStringSync());
-      } else {
-        throw Exception('Pre-commit hook already exists. Use --force to overwrite');
-      }
-    }
-    // 不存在则直接创建
-    else {
-      targetFile.writeAsStringSync(sourceFile.readAsStringSync());
-    }
-
-    // 设置可执行权限
-    if (Platform.isLinux || Platform.isMacOS) {
-      Process.runSync('chmod', ['+x', targetFile.path]);
-    }
   }
 }
