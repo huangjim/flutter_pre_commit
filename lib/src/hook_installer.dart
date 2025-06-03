@@ -93,26 +93,116 @@ exec dart analyze
   static String findTemplateFile(String filename) {
     print('查找模板文件: $filename');
     final possiblePaths = <String>[];
+    final scriptPath = Platform.script.toFilePath();
+    print('当前脚本路径: $scriptPath');
+    final currentDir = Directory.current.path;
+    print('当前工作目录: $currentDir');
     
-    // 1. 当前项目根目录下的lib/templates
-    possiblePaths.add(path.join(Directory.current.path, 'lib', 'templates', filename));
-    
-    // 2. 当前项目根目录下的templates
-    possiblePaths.add(path.join(Directory.current.path, 'templates', filename));
-    
-    // 3. 包所在目录下的lib/templates
+    // 1. 首先尝试从 package_config.json 中找到准确的包路径
     try {
-      final scriptPath = Platform.script.toFilePath();
-      print('当前脚本路径: $scriptPath');
+      final packageConfigPath = path.join(currentDir, '.dart_tool', 'package_config.json');
+      print('从 package_config.json 查找依赖包路径: $packageConfigPath');
+      final packageConfigFile = File(packageConfigPath);
       
+      if (packageConfigFile.existsSync()) {
+        // 首先尝试使用 JSON 解析
+        try {
+          final content = packageConfigFile.readAsStringSync();
+          final jsonData = jsonDecode(content) as Map<String, dynamic>;
+          final packages = jsonData['packages'] as List<dynamic>;
+          
+          for (final package in packages) {
+            if (package['name'] == 'flutter_pre_commit') {
+              var rootUri = package['rootUri'] as String;
+              print('找到依赖包URI: $rootUri');
+              
+              // 处理相对路径，它们是相对于 .dart_tool 目录的
+              if (rootUri.startsWith('file://')) {
+                // 绝对 URI
+                rootUri = rootUri.substring(7);
+              } else if (rootUri.startsWith('../') || rootUri.startsWith('./')) {
+                // 相对 URI，从 .dart_tool 目录开始计算
+                final dartToolDir = path.dirname(packageConfigPath);
+                rootUri = path.normalize(path.join(dartToolDir, rootUri));
+              }
+              
+              // 生成完整的模板路径
+              final templatePath = path.join(rootUri, 'lib', 'templates', filename);
+              print('检查依赖包模板路径: $templatePath');
+              
+              if (File(templatePath).existsSync()) {
+                print('成功从依赖包找到模板文件: $templatePath');
+                return templatePath;
+              }
+            }
+          }
+        } catch (e) {
+          print('解析 JSON 失败，尝试其他方法: $e');
+        }
+        
+        // 如果 JSON 解析失败，尝试使用正则表达式
+        try {
+          final content = packageConfigFile.readAsStringSync();
+          final packageIndex = content.indexOf('"name":"flutter_pre_commit"');
+          
+          if (packageIndex != -1) {
+            final rootUriIndex = content.indexOf('"rootUri":', packageIndex);
+            
+            if (rootUriIndex != -1) {
+              final startQuote = content.indexOf('"', rootUriIndex + 10);
+              final endQuote = content.indexOf('"', startQuote + 1);
+              
+              if (startQuote != -1 && endQuote != -1) {
+                var rootUri = content.substring(startQuote + 1, endQuote);
+                print('找到依赖包URI: $rootUri');
+                
+                // 处理相对路径，它们是相对于 .dart_tool 目录的
+                if (rootUri.startsWith('file://')) {
+                  // 绝对 URI
+                  rootUri = rootUri.substring(7);
+                } else if (rootUri.startsWith('../') || rootUri.startsWith('./')) {
+                  // 相对 URI，从 .dart_tool 目录开始计算
+                  final dartToolDir = path.dirname(packageConfigPath);
+                  rootUri = path.normalize(path.join(dartToolDir, rootUri));
+                }
+                
+                // 生成完整的模板路径
+                final templatePath = path.join(rootUri, 'lib', 'templates', filename);
+                print('检查依赖包模板路径: $templatePath');
+                
+                if (File(templatePath).existsSync()) {
+                  print('成功从依赖包找到模板文件: $templatePath');
+                  return templatePath;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          print('使用正则表达式处理失败: $e');
+        }
+      }
+    } catch (e) {
+      print('读取 package_config.json 时出错: $e');
+    }
+    
+    // 2. 如果从 package_config.json 找不到，尝试以下其他路径
+    
+    // 2.1 当前项目根目录下的 lib/templates
+    possiblePaths.add(path.join(currentDir, 'lib', 'templates', filename));
+    
+    // 2.2 当前项目根目录下的 templates
+    possiblePaths.add(path.join(currentDir, 'templates', filename));
+    
+    // 2.3 包所在目录下的 lib/templates（通过脚本路径推断）
+    try {
       // 向上查找包根目录
       String? packageDir;
       
-      // 3.1 如果是在.dart_tool/pub/bin中运行
+      // 2.3.1 如果是在 .dart_tool/pub/bin 中运行
       if (scriptPath.contains('.dart_tool/pub/bin/flutter_pre_commit')) {
-        // 从脚本路径向上找，看看是否能找到package
+        // 从脚本路径向上找，看看是否能找到 package
         var dir = path.dirname(scriptPath);
-        // 向上最多查找10层目录
+        // 向上最多查找 10 层目录
         for (var i = 0; i < 10; i++) {
           final libTemplatesDir = path.join(dir, 'lib', 'templates');
           final templatesDir = path.join(dir, 'templates');
@@ -128,7 +218,7 @@ exec dart analyze
           dir = path.dirname(dir);
         }
       } 
-      // 3.2 如果是在开发模式下运行
+      // 2.3.2 如果是在开发模式下运行
       else if (scriptPath.contains('bin/flutter_pre_commit.dart')) {
         packageDir = path.dirname(path.dirname(scriptPath));
       }
@@ -141,43 +231,27 @@ exec dart analyze
       print('查找包路径时出错: $e');
     }
     
-    // 4. 对于本地路径引用，尝试查找相对路径
+    // 2.4 对于本地路径引用，尝试查找相对路径
     try {
-      final currentDir = Directory.current.path;
+      // 2.4.1 直接上一级目录查找
       final localPackagePath = path.join(currentDir, '..', 'flutter_pre_commit');
       if (Directory(localPackagePath).existsSync()) {
         possiblePaths.add(path.join(localPackagePath, 'lib', 'templates', filename));
         possiblePaths.add(path.join(localPackagePath, 'templates', filename));
       }
-    } catch (e) {
-      print('查找本地包路径时出错: $e');
-    }
-    
-    // 5. 尝试在.dart_tool/package_config.json中查找包路径
-    try {
-      final packageConfigFile = File(path.join(Directory.current.path, '.dart_tool', 'package_config.json'));
-      if (packageConfigFile.existsSync()) {
-        final content = packageConfigFile.readAsStringSync();
-        final packageIndex = content.indexOf('"name":"flutter_pre_commit"');
-        if (packageIndex != -1) {
-          final rootUriIndex = content.indexOf('"rootUri":', packageIndex);
-          if (rootUriIndex != -1) {
-            final startQuote = content.indexOf('"', rootUriIndex + 10);
-            final endQuote = content.indexOf('"', startQuote + 1);
-            if (startQuote != -1 && endQuote != -1) {
-              var packageUri = content.substring(startQuote + 1, endQuote);
-              // 移除file://前缀
-              if (packageUri.startsWith('file://')) {
-                packageUri = packageUri.substring(7);
-              }
-              possiblePaths.add(path.join(packageUri, 'lib', 'templates', filename));
-              possiblePaths.add(path.join(packageUri, 'templates', filename));
-            }
-          }
+      
+      // 2.4.2 如果在 demo 子目录下，尝试特殊处理
+      if (currentDir.contains('/demo/')) {
+        // 尝试找到上一级的 demo 目录下的 flutter_pre_commit
+        final demoParentDir = path.dirname(path.dirname(currentDir));
+        final parentDemoPath = path.join(demoParentDir, 'flutter_pre_commit');
+        if (Directory(parentDemoPath).existsSync()) {
+          possiblePaths.add(path.join(parentDemoPath, 'lib', 'templates', filename));
+          possiblePaths.add(path.join(parentDemoPath, 'templates', filename));
         }
       }
     } catch (e) {
-      print('读取package_config.json时出错: $e');
+      print('查找本地包路径时出错: $e');
     }
     
     // 尝试所有可能的路径
@@ -190,6 +264,6 @@ exec dart analyze
     }
     
     // 如果以上方法都失败，抛出异常
-    throw Exception('找不到模板文件 $filename，尝试了以下路径: \n${possiblePaths.join('\n')}');
+    throw Exception('找不到模板文件: $filename，将使用内置模板');
   }
 }
