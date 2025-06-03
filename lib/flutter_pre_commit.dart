@@ -8,7 +8,7 @@ export 'src/config_manager.dart' show ConfigManager;
 // export 'src/hook_updater.dart' show HookUpdater;
 
 // 版本信息
-const String packageVersion = '0.2.0';
+const String packageVersion = '0.2.1';
 const String minFlutterVersion = '3.7.0';
 
 /// 预检查：验证当前环境是否满足要求
@@ -20,7 +20,8 @@ Future<void> preInstallCheck() async {
   }
 
   final versionOutput = result.stdout as String;
-  final versionMatch = RegExp(r'Flutter (\d+\.\d+\.\d+)').firstMatch(versionOutput);
+  final versionMatch =
+      RegExp(r'Flutter (\d+\.\d+\.\d+)').firstMatch(versionOutput);
 
   if (versionMatch == null) {
     throw Exception('Could not determine Flutter version');
@@ -28,7 +29,8 @@ Future<void> preInstallCheck() async {
 
   final currentVersion = versionMatch.group(1)!;
   if (_compareVersions(currentVersion, minFlutterVersion) < 0) {
-    throw Exception('Flutter $minFlutterVersion+ required. Current: $currentVersion');
+    throw Exception(
+        'Flutter $minFlutterVersion+ required. Current: $currentVersion');
   }
 
   // 检查Git仓库
