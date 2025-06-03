@@ -70,7 +70,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void initState() {
-    print("测试");
     super.initState();
   }
 
