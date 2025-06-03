@@ -1,3 +1,12 @@
+## 0.2.3
+
+* Improved template file lookup mechanism
+* Better handling of package path resolution
+* Enhanced error handling with fallback to embedded templates
+* Streamlined installation process
+* Fixed script execution issues in the pre-commit hook
+* Added more comprehensive template search strategies
+
 ## 0.2.2
 
 * 全面重构模板文件查找机制，支持各种引用方式（本地路径、pub.dev、Git依赖）
