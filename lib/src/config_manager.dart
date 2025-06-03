@@ -129,35 +129,6 @@ $current
     }
   }
 
-  static void _createDefaultAnalysisOptions(File targetFile) {
-    final sourceFile = File(path.join(
-        path.dirname(Platform.script.toFilePath()),
-        '../../templates/analysis_options.yaml'
-    ));
-
-    targetFile.writeAsStringSync(sourceFile.readAsStringSync());
-  }
-
-  static Future<String> _getDefaultAnalysisOptions() async {
-    final sourceFile = File(path.join(
-        path.dirname(Platform.script.toFilePath()),
-        '../../templates/analysis_options.yaml'
-    ));
-
-    return sourceFile.readAsStringSync();
-  }
-
-//   static String _mergeAnalysisOptions(String current, String defaults) {
-//     // 简化的YAML合并逻辑（实际实现应更健壮）
-//     return '''
-// # Includes flutter_pre_commit default rules
-// include: package:flutter_pre_commit/analysis_options.yaml
-//
-// # Project-specific rules
-// ${current.trim()}
-// ''';
-//   }
-
   static String x(String current, String defaults) {
     try {
       // 解析当前配置

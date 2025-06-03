@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_pre_commit/src/config_manager.dart';
 import 'package:path/path.dart' as path;
 
@@ -27,8 +28,8 @@ class HookInstaller {
     // 安装到 .git/hooks
     _installToGitHooks(targetDir, force);
 
-    print('✅ Flutter pre-commit hook installed successfully!');
-    print('   All Dart files will be checked before commit.');
+    debugPrint('✅ Flutter pre-commit hook installed successfully!');
+    debugPrint('   All Dart files will be checked before commit.');
   }
 
   static Future<void> _copyHookScript(Directory targetDir) async {
