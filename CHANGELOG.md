@@ -1,3 +1,8 @@
+## 0.2.0
+
+* 使用模板配置直接覆盖目标工程的 analysis_options.yaml
+* 简化命令行调用方式
+
 ## 0.1.0
 
 * Initial release of flutter_pre_commit

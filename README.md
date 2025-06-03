@@ -34,7 +34,7 @@ Add flutter_pre_commit to the dev_dependencies section of your `pubspec.yaml` fi
 
 ```yaml
 dev_dependencies:
-  flutter_pre_commit: ^0.1.0
+  flutter_pre_commit: ^0.2.0
 ```
 
 Then run:

@@ -69,20 +69,20 @@ void _printHelp(ArgParser parser) {
 Flutter Pre-Commit Hook Installer v$packageVersion
 
 Usage:
-  flutter pub run flutter_pre_commit:install [options]
+  flutter pub run flutter_pre_commit [options]
 
 Options:
 ${parser.usage}
 
 Examples:
   # Standard installation
-  flutter pub run flutter_pre_commit:install
+  flutter pub run flutter_pre_commit
   
   # Force overwrite existing hook
-  flutter pub run flutter_pre_commit:install --force
+  flutter pub run flutter_pre_commit --force
   
   # Skip environment checks
-  flutter pub run flutter_pre_commit:install --skip-checks
+  flutter pub run flutter_pre_commit --skip-checks
 ''');
 }
 
