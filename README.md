@@ -34,7 +34,7 @@ Add flutter_pre_commit to the dev_dependencies section of your `pubspec.yaml` fi
 
 ```yaml
 dev_dependencies:
-  flutter_pre_commit: ^0.2.1
+  flutter_pre_commit: ^0.2.4
 ```
 
 Then run:
@@ -85,11 +85,13 @@ flutter_pre_commit will create or update the `analysis_options.yaml` file in you
 
 ```yaml
 # Include flutter_pre_commit default rules
-include: package:flutter_pre_commit/analysis_options.yaml
+include: package:flutter_lints/flutter.yaml
 
 # You can add or override rules here
 linter:
   rules:
+    prefer_const_constructors: true       
+    depend_on_referenced_packages: false
     # Custom rules
 ```
 

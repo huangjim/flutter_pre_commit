@@ -1,3 +1,8 @@
+## 0.2.4
+
+* fix bug
+
+
 ## 0.2.3
 
 * Improved template file lookup mechanism
